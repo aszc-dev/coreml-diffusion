@@ -1,0 +1,25 @@
+name: Tier 1 — Smoke (macOS)
+
+# Converts a synthetic micro-UNet through coremltools on a hosted Apple Silicon
+# runner — catches coremltools API breakage without a real checkpoint or the ANE.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: macos-14
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: uv sync
+        run: uv sync
+
+      - name: Run Tier 1
+        run: uv run pytest -m smoke tests/ -v

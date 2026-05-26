@@ -1,0 +1,43 @@
+[project]
+name = "coreml-diffusion"
+description = "Convert diffusion-model checkpoints (SD1.5/SDXL) to Core ML for Apple Neural Engine — framework-free, ComfyUI-independent."
+version = "0.1.0"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+readme = "README.md"
+authors = [{ name = "aszc-dev" }]
+dependencies = [
+    "torch>=2.7,<2.8",
+    "coremltools>=9,<10",
+    "numpy>=2,<3",
+    "diffusers>=0.30",
+    "transformers>=4.44",
+    "peft>=0.13",
+    "omegaconf>=2.3",
+]
+
+[project.scripts]
+coreml-diffusion = "coreml_diffusion.cli:main"
+
+[project.urls]
+Repository = "https://github.com/aszc-dev/coreml-diffusion"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["coreml_diffusion"]
+
+[dependency-groups]
+dev = ["pytest>=9.0.3"]
+
+[tool.pytest.ini_options]
+markers = [
+    "unit: framework-free unit test (Tier 0)",
+    "smoke: macOS-ARM smoke test on a synthetic micro-model (Tier 1)",
+    "m2: requires Apple Silicon + Neural Engine (Tier 2)",
+    "inference: package-side custom-inference test via derived diffusers pipelines (planned)",
+]
+testpaths = ["tests"]
+addopts = ["--import-mode=importlib", "--confcutdir=tests"]
