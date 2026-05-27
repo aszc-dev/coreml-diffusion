@@ -1,0 +1,27 @@
+name: Release Please
+
+# Manages the release cycle: maintains a Release PR that bumps the version in
+# pyproject.toml and curates CHANGELOG.md from Conventional Commits (only the
+# user-facing types in release-please-config.json's changelog-sections are
+# surfaced). Merging that PR tags + publishes a GitHub Release.
+#
+# Runs with GH_CI_PAT (not the default GITHUB_TOKEN) so the Release it creates
+# triggers publish-pypi.yml — events made with GITHUB_TOKEN do not start other
+# workflows.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ secrets.GH_CI_PAT }}
