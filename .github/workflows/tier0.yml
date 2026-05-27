@@ -22,5 +22,10 @@ jobs:
       - name: uv sync
         run: uv sync
 
+      - name: Lint (ruff)
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
       - name: Run Tier 0
         run: uv run pytest -m unit tests/ -v

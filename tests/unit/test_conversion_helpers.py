@@ -122,8 +122,12 @@ def test_split_einsum_matches_original_attention_math():
     # split-einsum reorders the float32 reductions vs the reference, so equality
     # only holds up to rounding; the drift exceeds allclose's default atol on
     # some BLAS backends (e.g. Linux x86 CI).
-    assert torch.allclose(split_einsum(q, k, v, None, heads, dim_head), expected, atol=1e-6)
-    assert torch.allclose(split_einsum_v2(q, k, v, None, heads, dim_head), expected, atol=1e-6)
+    assert torch.allclose(
+        split_einsum(q, k, v, None, heads, dim_head), expected, atol=1e-6
+    )
+    assert torch.allclose(
+        split_einsum_v2(q, k, v, None, heads, dim_head), expected, atol=1e-6
+    )
 
 
 def test_split_einsum_v2_chunked_path_matches_original_attention_math():

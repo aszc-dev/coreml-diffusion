@@ -12,6 +12,7 @@ under tests/inference/.
 
 Auto-skips on non-Apple-Silicon hosts so Tier 0 CI on Linux ignores it.
 """
+
 import platform
 import shutil
 from types import SimpleNamespace
@@ -23,7 +24,6 @@ import torch.nn as nn
 
 from coreml_diffusion.conversion.unet import CoreMLUNetWrapper
 
-
 pytestmark = pytest.mark.skipif(
     platform.system() != "Darwin" or platform.machine() != "arm64",
     reason="Tier 1 requires macOS on Apple Silicon",
@@ -34,7 +34,11 @@ pytestmark = pytest.mark.skipif(
 # coremltools, small enough that conversion finishes in seconds on CPU.
 SAMPLE_SHAPE = (1, 4, 8, 8)
 TIMESTEP_SHAPE = (1,)
-ENCODER_SHAPE = (1, 4, 64)  # native diffusers encoder_hidden_states (batch, tokens, hidden)
+ENCODER_SHAPE = (
+    1,
+    4,
+    64,
+)  # native diffusers encoder_hidden_states (batch, tokens, hidden)
 OUT_NAME = "noise_pred"
 
 
@@ -93,7 +97,9 @@ def tiny_mlpackage(tmp_path_factory):
         inputs=[
             ct.TensorType(name="sample", shape=SAMPLE_SHAPE, dtype=np.float16),
             ct.TensorType(name="timestep", shape=TIMESTEP_SHAPE, dtype=np.float16),
-            ct.TensorType(name="encoder_hidden_states", shape=ENCODER_SHAPE, dtype=np.float16),
+            ct.TensorType(
+                name="encoder_hidden_states", shape=ENCODER_SHAPE, dtype=np.float16
+            ),
         ],
         outputs=[ct.TensorType(name=OUT_NAME, dtype=np.float16)],
         compute_units=ct.ComputeUnit.CPU_ONLY,

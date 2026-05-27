@@ -8,6 +8,7 @@ the Tier-0 promise — "runs on Linux with no Mac stack" — is broken.
 When other tiers are also collected (smoke pulls coremltools deliberately), the
 check is skipped, so it is only meaningful in a pure ``-m unit`` run.
 """
+
 import sys
 
 import pytest

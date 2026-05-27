@@ -5,6 +5,7 @@ can be tested + reused without instantiating the node. The string is the
 cache key: every workflow that references a converted .mlpackage depends
 on it staying byte-for-byte identical.
 """
+
 from typing import Iterable, Tuple
 
 ATTN_SUFFIX = {
@@ -52,7 +53,11 @@ def compose_out_name(
         )
     stem = ckpt_name.split(".")[0]
     sorted_names = sorted(lora_names)
-    lora_str = "_" + "_".join(name.split(".")[0] for name in sorted_names) if sorted_names else ""
+    lora_str = (
+        "_" + "_".join(name.split(".")[0] for name in sorted_names)
+        if sorted_names
+        else ""
+    )
     cn_suffix = "_cn" if controlnet_support else ""
     attn_suffix = "_" + ATTN_SUFFIX[attention_implementation]
     quant_suffix = f"_q{quantize_nbits}" if quantize_nbits != "none" else ""

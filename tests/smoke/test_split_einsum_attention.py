@@ -9,7 +9,6 @@ from coreml_diffusion.conversion.attention import (
     SplitEinsumV2AttnProcessor,
 )
 
-
 pytestmark = pytest.mark.skipif(
     platform.system() != "Darwin" or platform.machine() != "arm64",
     reason="Tier 1 requires macOS on Apple Silicon",

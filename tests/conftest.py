@@ -4,6 +4,7 @@ Auto-applies tier markers from the directory a test lives in, and (when a single
 tier is requested via ``-m``) skips the other tiers at collection time so Tier 0
 on Linux never imports the Mac-only stack (coremltools) that Tier 1/2 pull in.
 """
+
 import pytest
 
 _TIER_BY_DIR = {

@@ -8,6 +8,7 @@ produces a ``.mlpackage`` on disk and stops there: it must NOT import ``comfy``,
 derives the trace timestep from an LCM scheduler) shares this single
 implementation instead of keeping a near-duplicate copy.
 """
+
 import gc
 import os
 import time
@@ -18,12 +19,12 @@ import torch
 from diffusers import UNet2DConditionModel
 
 from coreml_diffusion.attention import ATTENTION_IMPLEMENTATIONS
-from coreml_diffusion.model_version import ModelVersion
 from coreml_diffusion.conversion.attention import apply_attention_implementation
 from coreml_diffusion.conversion.shapes import conv2d_output_shape
 from coreml_diffusion.conversion.trace import prepare_unet_for_coreml_trace
 from coreml_diffusion.conversion.unet import CoreMLUNetWrapper
 from coreml_diffusion.logger import logger
+from coreml_diffusion.model_version import ModelVersion
 
 DEFAULT_TRACE_TIMESTEP = 999.0
 TEXT_TOKEN_SEQUENCE_LENGTH = 77
@@ -97,7 +98,9 @@ def convert_to_coreml(
     return coreml_model
 
 
-def get_sample_input(batch_size, encoder_hidden_states_shape, sample_shape, scheduler=None):
+def get_sample_input(
+    batch_size, encoder_hidden_states_shape, sample_shape, scheduler=None
+):
     """Build the example inputs used to JIT-trace the UNet.
 
     When ``scheduler`` is provided (the LCM path) the trace timestep is taken
@@ -106,7 +109,9 @@ def get_sample_input(batch_size, encoder_hidden_states_shape, sample_shape, sche
     graph — the random values are placeholders.
     """
     timestep_value = (
-        scheduler.timesteps[0].item() if scheduler is not None else DEFAULT_TRACE_TIMESTEP
+        scheduler.timesteps[0].item()
+        if scheduler is not None
+        else DEFAULT_TRACE_TIMESTEP
     )
     sample_unet_inputs = dict(
         [
@@ -144,7 +149,10 @@ def sdxl_inputs(sample_unet_inputs, ref_unet, model_version):
         time_ids_list = list(original_size + crops_coords_top_left + target_size)
 
     time_ids = torch.tensor(time_ids_list).repeat(batch_size, 1).to(torch.int64)
-    text_embeds_shape = (batch_size, get_sdxl_text_embeds_dim(ref_unet, len(time_ids_list)))
+    text_embeds_shape = (
+        batch_size,
+        get_sdxl_text_embeds_dim(ref_unet, len(time_ids_list)),
+    )
 
     return {
         "time_ids": time_ids,

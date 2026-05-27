@@ -19,10 +19,11 @@ version bump. The identifiers returned here are an ADDITIVE-ONLY contract:
 
 because a saved workflow JSON references these strings verbatim.
 """
+
 from enum import Enum
 
-from coreml_diffusion.model_version import ModelVersion
 from coreml_diffusion.attention import ATTENTION_IMPLEMENTATIONS
+from coreml_diffusion.model_version import ModelVersion
 from coreml_diffusion.naming import (
     QUANT_NBITS_VALUES,
     compose_out_name,
@@ -43,7 +44,7 @@ __all__ = [
 
 
 class Status(Enum):
-    VERIFIED = "verified"          # has a golden anchor + passing [M2-ANE] check
+    VERIFIED = "verified"  # has a golden anchor + passing [M2-ANE] check
     EXPERIMENTAL = "experimental"  # convertible, not yet anchored/verified
 
 
@@ -59,7 +60,7 @@ _MODEL_STATUS = {
     ModelVersion.SD15: Status.VERIFIED,
     ModelVersion.SDXL: Status.VERIFIED,
     ModelVersion.SDXL_REFINER: Status.EXPERIMENTAL,  # -> VERIFIED after a refiner golden anchor
-    ModelVersion.LCM: Status.EXPERIMENTAL,           # -> VERIFIED after E-LCM golden anchor
+    ModelVersion.LCM: Status.EXPERIMENTAL,  # -> VERIFIED after E-LCM golden anchor
 }
 
 

@@ -5,10 +5,10 @@ coreml_diffusion.naming.compose_out_name function. CoreMLConverter.convert
 calls it; testing the pure function avoids monkey-patching heavy converter
 internals just to capture the string.
 """
+
 import pytest
 
 from coreml_diffusion.naming import compose_out_name, lora_names_from_params
-
 
 # ---------- attention suffixes ----------------------------------------------
 
@@ -24,7 +24,9 @@ from coreml_diffusion.naming import compose_out_name, lora_names_from_params
 def test_attention_suffix(attn_name, suffix):
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation=attn_name,
     )
@@ -37,7 +39,9 @@ def test_attention_suffix(attn_name, suffix):
 def test_includes_batch_and_size():
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=4, width=768, height=1024,
+        batch_size=4,
+        width=768,
+        height=1024,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
     )
@@ -50,7 +54,9 @@ def test_includes_batch_and_size():
 def test_appends_cn_suffix_when_controlnet_support_true():
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=True,
         attention_implementation="SPLIT_EINSUM",
     )
@@ -63,7 +69,9 @@ def test_appends_cn_suffix_when_controlnet_support_true():
 def test_drops_extension_at_first_period():
     out = compose_out_name(
         ckpt_name="my.checkpoint.v2.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
     )
@@ -73,7 +81,9 @@ def test_drops_extension_at_first_period():
 def test_replaces_spaces_with_underscores():
     out = compose_out_name(
         ckpt_name="dream shaper 8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
     )
@@ -86,7 +96,9 @@ def test_replaces_spaces_with_underscores():
 def test_single_lora():
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
         lora_names=["epi_noiseoffset.safetensors"],
@@ -97,7 +109,9 @@ def test_single_lora():
 def test_multiple_loras_sorted():
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
         lora_names=["zoom.safetensors", "alpha.safetensors", "moody.safetensors"],
@@ -108,7 +122,9 @@ def test_multiple_loras_sorted():
 def test_lora_plus_controlnet():
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=True,
         attention_implementation="SPLIT_EINSUM",
         lora_names=["a.safetensors"],
@@ -122,7 +138,9 @@ def test_lora_plus_controlnet():
 def test_sdxl_1024_original_gpu():
     out = compose_out_name(
         ckpt_name="sd_xl_base_1.0.safetensors",
-        batch_size=1, width=1024, height=1024,
+        batch_size=1,
+        width=1024,
+        height=1024,
         controlnet_support=False,
         attention_implementation="ORIGINAL",
     )
@@ -133,11 +151,13 @@ def test_sdxl_1024_original_gpu():
 
 
 def test_lora_names_from_params_sorts_by_name():
-    names = lora_names_from_params([
-        ("zebra.safetensors", 1.0),
-        ("apple.safetensors", 0.5),
-        ("mango.safetensors", 0.7),
-    ])
+    names = lora_names_from_params(
+        [
+            ("zebra.safetensors", 1.0),
+            ("apple.safetensors", 0.5),
+            ("mango.safetensors", 0.7),
+        ]
+    )
     assert names == ["apple.safetensors", "mango.safetensors", "zebra.safetensors"]
 
 
@@ -153,7 +173,9 @@ def test_quantize_nbits_none_appends_nothing():
     existing cached .mlpackages still resolve."""
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
         quantize_nbits="none",
@@ -165,7 +187,9 @@ def test_quantize_nbits_none_appends_nothing():
 def test_quantize_nbits_appends_q_suffix(nbits, suffix):
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=False,
         attention_implementation="SPLIT_EINSUM",
         quantize_nbits=nbits,
@@ -176,7 +200,9 @@ def test_quantize_nbits_appends_q_suffix(nbits, suffix):
 def test_quantize_nbits_with_controlnet_and_lora():
     out = compose_out_name(
         ckpt_name="dreamshaper_8.safetensors",
-        batch_size=1, width=512, height=512,
+        batch_size=1,
+        width=512,
+        height=512,
         controlnet_support=True,
         attention_implementation="SPLIT_EINSUM",
         lora_names=["a.safetensors"],
@@ -187,10 +213,13 @@ def test_quantize_nbits_with_controlnet_and_lora():
 
 def test_quantize_nbits_invalid_raises():
     import pytest as _pytest
+
     with _pytest.raises(ValueError, match="quantize_nbits"):
         compose_out_name(
             ckpt_name="x.safetensors",
-            batch_size=1, width=512, height=512,
+            batch_size=1,
+            width=512,
+            height=512,
             controlnet_support=False,
             attention_implementation="SPLIT_EINSUM",
             quantize_nbits="16",  # not in {none, 8, 6, 4}

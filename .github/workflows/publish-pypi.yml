@@ -1,0 +1,29 @@
+name: Publish to PyPI
+
+# Trusted Publishing (OIDC) — no API token stored. Configure a PyPI publisher
+# for this repo/workflow first (see https://docs.pypi.org/trusted-publishers/).
+# Fires when a GitHub Release is published; the release tag must match the
+# version in pyproject.toml (e.g. tag v0.1.0 -> version 0.1.0).
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write # required for Trusted Publishing
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Build
+        run: uv build
+
+      - name: Publish
+        run: uv publish

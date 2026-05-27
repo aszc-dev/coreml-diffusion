@@ -4,6 +4,7 @@ The heavy ``coreml_diffusion.convert`` is mocked, so this runs on plain Linux
 and never imports coremltools/diffusers — only that the parsed flags reach
 ``convert`` with the right shapes/types.
 """
+
 import pytest
 
 import coreml_diffusion
@@ -31,17 +32,27 @@ def test_full_args_map_to_convert(monkeypatch):
         monkeypatch,
         [
             "convert",
-            "--ckpt", "model.safetensors",
-            "--model-version", "SD15",
-            "--out", "unet.mlpackage",
-            "--height", "768",
-            "--width", "512",
-            "--batch-size", "2",
-            "--attn-impl", "ORIGINAL",
+            "--ckpt",
+            "model.safetensors",
+            "--model-version",
+            "SD15",
+            "--out",
+            "unet.mlpackage",
+            "--height",
+            "768",
+            "--width",
+            "512",
+            "--batch-size",
+            "2",
+            "--attn-impl",
+            "ORIGINAL",
             "--controlnet",
-            "--quantize", "4",
-            "--lora", "a.safetensors:0.8",
-            "--lora", "b.safetensors",
+            "--quantize",
+            "4",
+            "--lora",
+            "a.safetensors:0.8",
+            "--lora",
+            "b.safetensors",
         ],
     )
     ckpt, model_version, out = captured["positional"]
@@ -61,7 +72,15 @@ def test_full_args_map_to_convert(monkeypatch):
 def test_defaults(monkeypatch):
     captured = _run(
         monkeypatch,
-        ["convert", "--ckpt", "m.safetensors", "--model-version", "SDXL", "--out", "o.mlpackage"],
+        [
+            "convert",
+            "--ckpt",
+            "m.safetensors",
+            "--model-version",
+            "SDXL",
+            "--out",
+            "o.mlpackage",
+        ],
     )
     kw = captured["kwargs"]
     assert captured["positional"][1] is ModelVersion.SDXL
@@ -87,4 +106,6 @@ def test_missing_required_args_exits_nonzero():
 
 def test_bad_model_version_rejected():
     with pytest.raises(SystemExit):
-        cli.main(["convert", "--ckpt", "m", "--model-version", "sd15", "--out", "o"])  # lowercase != .name
+        cli.main(
+            ["convert", "--ckpt", "m", "--model-version", "sd15", "--out", "o"]
+        )  # lowercase != .name

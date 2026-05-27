@@ -10,6 +10,7 @@ Until this suite exists, inference verification relies on ComfyUI-CoreMLSuite's
 golden e2e (`pytest -m m2`). This module is intentionally skipped; it reserves the
 directory, the `inference` marker, and the intent.
 """
+
 import pytest
 
 pytestmark = pytest.mark.skip(

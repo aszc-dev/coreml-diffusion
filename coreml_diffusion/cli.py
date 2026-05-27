@@ -10,6 +10,7 @@ Example:
     coreml-diffusion convert --ckpt model.safetensors --model-version SD15 \\
         --out unet.mlpackage --height 512 --width 512 --attn-impl SPLIT_EINSUM
 """
+
 import argparse
 
 import coreml_diffusion
@@ -52,7 +53,9 @@ def build_parser():
     sub = parser.add_subparsers(dest="command", required=True)
 
     conv = sub.add_parser("convert", help="Convert a checkpoint's UNet to a .mlpackage")
-    conv.add_argument("--ckpt", required=True, help="Path to the source .safetensors checkpoint")
+    conv.add_argument(
+        "--ckpt", required=True, help="Path to the source .safetensors checkpoint"
+    )
     conv.add_argument(
         "--model-version",
         required=True,
@@ -62,9 +65,15 @@ def build_parser():
         help="Model architecture (verified: SD15, SDXL; experimental otherwise)",
     )
     conv.add_argument("--out", required=True, help="Output .mlpackage path to write")
-    conv.add_argument("--height", type=int, default=512, help="Target image height (default 512)")
-    conv.add_argument("--width", type=int, default=512, help="Target image width (default 512)")
-    conv.add_argument("--batch-size", type=int, default=1, help="Batch size (default 1)")
+    conv.add_argument(
+        "--height", type=int, default=512, help="Target image height (default 512)"
+    )
+    conv.add_argument(
+        "--width", type=int, default=512, help="Target image width (default 512)"
+    )
+    conv.add_argument(
+        "--batch-size", type=int, default=1, help="Batch size (default 1)"
+    )
     conv.add_argument(
         "--attn-impl",
         choices=coreml_diffusion.list_attention_impls(),
@@ -82,7 +91,9 @@ def build_parser():
         metavar="PATH[:STRENGTH]",
         help="LoRA to fuse before conversion; repeatable. STRENGTH defaults to 1.0",
     )
-    conv.add_argument("--config", default=None, help="Optional original-config YAML path")
+    conv.add_argument(
+        "--config", default=None, help="Optional original-config YAML path"
+    )
     conv.add_argument(
         "--quantize",
         choices=coreml_diffusion.list_quant_modes(),

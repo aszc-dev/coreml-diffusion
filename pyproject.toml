@@ -3,9 +3,31 @@ name = "coreml-diffusion"
 description = "Convert diffusion-model checkpoints (SD1.5/SDXL) to Core ML for Apple Neural Engine — framework-free, ComfyUI-independent."
 version = "0.1.0"
 license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.13"
 readme = "README.md"
-authors = [{ name = "aszc-dev" }]
+authors = [{ name = "Adrian Szczepański", email = "hi@aszc.dev" }]
+keywords = [
+    "coreml",
+    "core-ml",
+    "diffusion",
+    "stable-diffusion",
+    "sdxl",
+    "apple-neural-engine",
+    "ane",
+    "diffusers",
+    "comfyui",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Multimedia :: Graphics :: Graphics Conversion",
+    "Typing :: Typed",
+]
 dependencies = [
     "torch>=2.7,<2.8",
     "coremltools>=9,<10",
@@ -20,7 +42,9 @@ dependencies = [
 coreml-diffusion = "coreml_diffusion.cli:main"
 
 [project.urls]
+Homepage = "https://github.com/aszc-dev/coreml-diffusion"
 Repository = "https://github.com/aszc-dev/coreml-diffusion"
+Issues = "https://github.com/aszc-dev/coreml-diffusion/issues"
 
 [build-system]
 requires = ["hatchling"]
@@ -30,7 +54,17 @@ build-backend = "hatchling.build"
 packages = ["coreml_diffusion"]
 
 [dependency-groups]
-dev = ["pytest>=9.0.3"]
+dev = [
+    "pytest>=9.0.3",
+    "ruff>=0.14",
+]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+# Ruff defaults (E, F) plus import sorting; ruff format does not sort imports.
+extend-select = ["I"]
 
 [tool.pytest.ini_options]
 markers = [

@@ -19,7 +19,9 @@ def apply_attention_implementation(unet, attention_implementation):
         unet.set_attn_processor(SplitEinsumV2AttnProcessor())
         return unet
 
-    raise ValueError(f"Unsupported attention implementation: {attention_implementation}")
+    raise ValueError(
+        f"Unsupported attention implementation: {attention_implementation}"
+    )
 
 
 class SplitEinsumAttnProcessor:
@@ -80,14 +82,18 @@ def _attention_forward(
     input_ndim = hidden_states.ndim
     if input_ndim == 4:
         batch_size, channel, height, width = hidden_states.shape
-        hidden_states = hidden_states.view(batch_size, channel, height * width).transpose(1, 2)
+        hidden_states = hidden_states.view(
+            batch_size, channel, height * width
+        ).transpose(1, 2)
     else:
         batch_size, _, channel = hidden_states.shape
         height = None
         width = None
 
     batch_size, key_sequence_length, _ = (
-        hidden_states.shape if encoder_hidden_states is None else encoder_hidden_states.shape
+        hidden_states.shape
+        if encoder_hidden_states is None
+        else encoder_hidden_states.shape
     )
 
     if attention_mask is not None:
