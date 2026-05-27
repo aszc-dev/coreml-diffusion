@@ -36,7 +36,11 @@ def get_unet(model_version: ModelVersion, ref_unet, attention_implementation):
         ref_unet.eval(),
         attention_implementation,
     )
-    return CoreMLUNetWrapper(unet, model_version)
+    # The freshly built wrapper defaults to training mode; the inner UNet is
+    # already eval, but coremltools inspects the top-level traced module and warns
+    # ("Model is not in eval mode"). eval() on the wrapper silences it and makes
+    # the eval-mode trace explicit (output is unchanged — UNet dropout p=0).
+    return CoreMLUNetWrapper(unet, model_version).eval()
 
 
 def get_encoder_hidden_states_shape(ref_unet, batch_size):
