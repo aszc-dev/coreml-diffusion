@@ -40,6 +40,8 @@ __all__ = [
     "compose_out_name",
     "lora_names_from_params",
     "convert",
+    "build_pipeline",
+    "CoreMLUNet",
 ]
 
 
@@ -105,4 +107,8 @@ def __getattr__(name):
         from coreml_diffusion.convert import convert as _convert
 
         return _convert
+    if name in ("build_pipeline", "CoreMLUNet"):
+        from coreml_diffusion import inference
+
+        return getattr(inference, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

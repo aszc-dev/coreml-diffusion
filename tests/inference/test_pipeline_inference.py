@@ -1,26 +1,76 @@
-"""Placeholder for the package-side custom-inference suite (Tier: inference).
+"""Package-side custom-inference suite (Tier: inference).
 
-Planned: run inference through derived `diffusers` pipelines with custom behavior
-so a converted `.mlpackage` can generate an image end-to-end WITHOUT ComfyUI, and
-showcase results. That path differs from ComfyUI's sampler, so it will produce its
-own golden image (an expected divergence from the Suite's comfy e2e, to be
-re-anchored here — not a regression).
+Runs a converted ``.mlpackage`` UNet through a stock ``diffusers`` pipeline with
+no ComfyUI (``coreml_diffusion.build_pipeline``), generating an image end-to-end
+on the ANE. This produces the package's OWN golden image — distinct from the
+Suite's comfy e2e (different sampler), so divergence from that is expected, not a
+regression.
 
-Until this suite exists, inference verification relies on ComfyUI-CoreMLSuite's
-golden e2e (`pytest -m m2`). This module is intentionally skipped; it reserves the
-directory, the `inference` marker, and the intent.
+Prerequisites (the test skips unless all are set):
+  COREML_DIFFUSION_TEST_CKPT        single-file SD1.5 .safetensors
+  COREML_DIFFUSION_TEST_MLPACKAGE   its UNet converted at batch_size=2, 512x512
+                                    (batch=2 because guided CFG feeds uncond+cond)
+On first run with no golden present, the image is written as the golden and the
+PSNR assertion is skipped; commit it, then later runs assert against it.
 """
 
+import os
+from pathlib import Path
+
+import numpy as np
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="custom-inference suite not implemented yet; inference verified via "
-    "ComfyUI-CoreMLSuite golden e2e for now"
+CKPT = os.environ.get("COREML_DIFFUSION_TEST_CKPT")
+MLPACKAGE = os.environ.get("COREML_DIFFUSION_TEST_MLPACKAGE")
+
+pytestmark = pytest.mark.skipif(
+    not (CKPT and MLPACKAGE),
+    reason="set COREML_DIFFUSION_TEST_CKPT and COREML_DIFFUSION_TEST_MLPACKAGE "
+    "(a batch=2 512x512 SD1.5 UNet) to run the inference golden",
 )
+
+PROMPT = "a photograph of an astronaut riding a horse"
+SEED = 0
+STEPS = 20
+GUIDANCE = 7.5
+PSNR_THRESHOLD = 25.0
+GOLDEN = Path(__file__).parent / "golden" / "sd15_astronaut.npy"
+
+
+def _psnr(a, b):
+    mse = np.mean((a.astype(np.float64) - b.astype(np.float64)) ** 2)
+    if mse == 0:
+        return float("inf")
+    return 10.0 * np.log10((255.0**2) / mse)
 
 
 def test_converted_unet_generates_expected_latent():
-    # TODO: build a derived diffusers pipeline around a converted .mlpackage UNet,
-    # run a fixed-seed denoise, and assert the decoded image matches a package-side
-    # golden (PSNR threshold). Capture that golden when the pipeline lands.
-    raise NotImplementedError
+    import torch
+
+    import coreml_diffusion
+    from coreml_diffusion import ModelVersion
+
+    pipe = coreml_diffusion.build_pipeline(CKPT, MLPACKAGE, ModelVersion.SD15)
+    image = pipe(
+        PROMPT,
+        num_inference_steps=STEPS,
+        guidance_scale=GUIDANCE,
+        height=512,
+        width=512,
+        generator=torch.manual_seed(SEED),
+    ).images[0]
+    produced = np.asarray(image)
+
+    if not GOLDEN.exists():
+        GOLDEN.parent.mkdir(parents=True, exist_ok=True)
+        np.save(GOLDEN, produced)
+        pytest.skip(
+            f"captured golden at {GOLDEN}; commit it, then this run asserts PSNR"
+        )
+
+    golden = np.load(GOLDEN)
+    assert produced.shape == golden.shape, (produced.shape, golden.shape)
+    psnr = _psnr(produced, golden)
+    assert psnr > PSNR_THRESHOLD, (
+        f"PSNR {psnr:.1f} dB below {PSNR_THRESHOLD} dB threshold"
+    )
