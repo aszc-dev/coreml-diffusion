@@ -6,6 +6,7 @@ from coreml_diffusion.conversion.attention import (
     SplitEinsumAttnProcessor,
     SplitEinsumV2AttnProcessor,
     apply_attention_implementation,
+    original,
     split_einsum,
     split_einsum_v2,
 )
@@ -106,6 +107,24 @@ def test_unet_wrapper_routes_sdxl_added_conditioning():
     assert unet.call["added_cond_kwargs"]["text_embeds"] is text_embeds
 
 
+def test_original_matches_reference_attention_math():
+    torch.manual_seed(0)
+    batch = 2
+    heads = 3
+    dim_head = 4
+    sequence = 16
+    channels = heads * dim_head
+    q = torch.randn(batch, channels, 1, sequence)
+    k = torch.randn(batch, channels, 1, sequence)
+    v = torch.randn(batch, channels, 1, sequence)
+
+    expected = _original_attention(q, k, v, None, heads, dim_head)
+
+    # original() upcasts to fp32 internally, so on fp32 inputs it reproduces the
+    # reference math; the bkeq score layout differs but the semantics do not.
+    assert torch.allclose(original(q, k, v, None, heads, dim_head), expected, atol=1e-6)
+
+
 def test_split_einsum_matches_original_attention_math():
     torch.manual_seed(0)
     batch = 2
@@ -151,10 +170,12 @@ def test_split_einsum_v2_chunked_path_matches_original_attention_math():
 
 
 def test_apply_attention_implementation_sets_split_processors():
+    # ORIGINAL is intentionally absent here: asserting it installs
+    # OriginalAttnProcessor on real Attention modules needs diffusers (heavy) and
+    # would break the Tier-0 framework-free promise. That path is covered by
+    # tests/smoke/test_original_attention.py. (The kernel itself, original(), is
+    # framework-free and is exercised by test_original_matches_reference_*.)
     unet = RecordingProcessorUNet()
-
-    assert apply_attention_implementation(unet, "ORIGINAL") is unet
-    assert unet.processor is None
 
     apply_attention_implementation(unet, "SPLIT_EINSUM")
     assert isinstance(unet.processor, SplitEinsumAttnProcessor)
