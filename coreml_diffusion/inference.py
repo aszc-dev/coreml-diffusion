@@ -4,7 +4,7 @@ Runs a `.mlpackage` UNet inside a stock ``diffusers`` pipeline with NO ComfyUI:
 the VAE and text encoder run on torch (CPU/MPS) while the UNet is served from
 Core ML on the ANE. This is the package-side counterpart to ``convert`` — it
 proves a converted artifact generates an image end-to-end, and provides the
-golden anchor for the ``inference`` test tier.
+Tier 2 (``m2``) golden anchor (``tests/m2/``).
 
 ``CoreMLUNet`` is the inverse of ``conversion.unet.CoreMLUNetWrapper``: the
 wrapper adapts diffusers UNet *inputs* into the flat Core ML tensor contract at
@@ -158,7 +158,7 @@ def build_pipeline(
     The VAE / text encoder / scheduler come from the same checkpoint and run on
     ``torch_device``; only the UNet is served from ``mlpackage_path`` via Core ML.
     Returns the pipeline ready to call. Wired for SD15 and SDXL; the golden
-    anchor that verifies output is captured by the ``inference`` test tier.
+    anchor that verifies output is captured by the Tier 2 (``m2``) test tier.
     """
     if model_version not in _PIPELINE_IMPORTS:
         raise NotImplementedError(

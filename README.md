@@ -82,8 +82,9 @@ coreml_diffusion.convert(
 A framework-free inference path lets a converted `.mlpackage` generate images with
 no host framework: a `diffusers` pipeline runs the stock VAE / text encoder on
 torch while the UNet is served from Core ML on the ANE. This doubles as the
-package's own regression anchor (a golden image per model) and as the reference
-for the on-device write-up. See `tests/inference/`.
+package's own regression anchor — the Tier 2 (`m2`) golden image, asserted on an
+Apple Silicon runner — and as the reference for the on-device write-up. See
+`tests/m2/`.
 
 ## Discovery API
 

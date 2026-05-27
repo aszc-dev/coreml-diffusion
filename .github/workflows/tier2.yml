@@ -1,0 +1,74 @@
+name: Tier 2 — M2 / ANE (self-hosted)
+
+on:
+  pull_request:
+    # `labeled` fires when run-m2 is first added; `synchronize`/`reopened`
+    # re-run on every subsequent push while the label is present, so the result
+    # tracks the PR head instead of going stale. The `if` below keeps the run
+    # gated on the run-m2 label for all pull_request events.
+    types: [labeled, synchronize, reopened]
+  schedule:
+    # Nightly at 04:00 UTC (~05/06 in PL). Keeps the ANE path honest without
+    # burning the runner on every PR.
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+jobs:
+  m2:
+    if: |
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'run-m2'))
+    # Self-hosted Apple Silicon runner (shared with ComfyUI-CoreMLSuite's Tier 2,
+    # same `coreml` label). The runner's environment MUST export
+    # COREML_DIFFUSION_TEST_CKPT: an absolute path to a cached single-file SD1.5
+    # checkpoint. The gate converts it fresh and runs the comfy-free inference
+    # golden — no ComfyUI involved.
+    runs-on: [self-hosted, macOS, ARM64, coreml]
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: uv sync
+        run: uv sync
+
+      - name: Check cached checkpoint
+        # The runner's .env must export COREML_DIFFUSION_TEST_CKPT — an absolute
+        # path to a cached single-file SD1.5 checkpoint.
+        run: |
+          set -euo pipefail
+          if [ -z "${COREML_DIFFUSION_TEST_CKPT:-}" ]; then
+            echo "COREML_DIFFUSION_TEST_CKPT unset — add it to the runner's .env."
+            exit 1
+          fi
+          test -f "$COREML_DIFFUSION_TEST_CKPT" || {
+            echo "checkpoint not found: $COREML_DIFFUSION_TEST_CKPT"; exit 1; }
+          echo "Tier 2: checkpoint \`$COREML_DIFFUSION_TEST_CKPT\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Convert UNet fresh (batch=2 for CFG)
+        # Convert on every run. The .mlpackage cache key is conversion
+        # *parameters* only, not the conversion code or toolchain — a stale model
+        # would let a conversion regression pass. batch=2 because guided CFG feeds
+        # uncond+cond in a single forward pass, and ANE input shapes are fixed at
+        # convert time.
+        run: |
+          set -euo pipefail
+          MLPKG="$RUNNER_TEMP/sd15_b2.mlpackage"
+          rm -rf "$MLPKG"
+          uv run coreml-diffusion convert \
+            --ckpt "$COREML_DIFFUSION_TEST_CKPT" \
+            --model-version SD15 \
+            --out "$MLPKG" \
+            --batch-size 2 --height 512 --width 512 --attn-impl SPLIT_EINSUM
+          echo "COREML_DIFFUSION_TEST_MLPACKAGE=$MLPKG" >> "$GITHUB_ENV"
+
+      - name: Run Tier 2 (m2 marker)
+        # Builds a stock diffusers pipeline around the converted UNet and asserts
+        # the generated image against the committed golden (exact match, else
+        # PSNR >= GOLDEN_PSNR_MIN_DB). VAE/text encoder on torch, UNet on the ANE.
+        run: uv run --no-sync pytest -m m2 tests/ -v
