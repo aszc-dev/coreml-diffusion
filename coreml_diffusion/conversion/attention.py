@@ -9,6 +9,7 @@ CHUNK_SIZE = 512
 
 def apply_attention_implementation(unet, attention_implementation):
     if attention_implementation == "ORIGINAL":
+        unet.set_attn_processor(OriginalAttnProcessor())
         return unet
 
     if attention_implementation == "SPLIT_EINSUM":
@@ -22,6 +23,43 @@ def apply_attention_implementation(unet, attention_implementation):
     raise ValueError(
         f"Unsupported attention implementation: {attention_implementation}"
     )
+
+
+class OriginalAttnProcessor:
+    """Full (non-split) multi-head attention with an fp32 score path.
+
+    The ORIGINAL implementation targets the Core ML GPU path (SPLIT_EINSUM* are
+    the ANE-friendly default). It is *not* diffusers' stock attention: that path
+    routes through ``F.scaled_dot_product_attention`` plus ``view(B, -1, heads,
+    d)`` reshapes that fail to convert under coremltools 9 (the same einsum graph
+    SPLIT_EINSUM uses converts cleanly). Nor is it diffusers' legacy
+    ``AttnProcessor`` — its ``get_attention_scores`` builds the score buffer with
+    ``torch.empty(query.shape[0], ...)``, whose dynamic int shape also fails ct9.
+
+    So this reuses the SPLIT_EINSUM conversion-safe boilerplate and supplies a
+    plain full-attention kernel that upcasts QK^T + softmax to fp32. Without the
+    upcast, fp16 self-attention at 64x64 latents (4096 query tokens) overflows ->
+    inf -> NaN after softmax.
+    """
+
+    def __call__(
+        self,
+        attn,
+        hidden_states,
+        encoder_hidden_states=None,
+        attention_mask=None,
+        temb=None,
+        *args,
+        **kwargs,
+    ):
+        return _attention_forward(
+            attn,
+            hidden_states,
+            encoder_hidden_states,
+            attention_mask,
+            temb,
+            original,
+        )
 
 
 class SplitEinsumAttnProcessor:
@@ -156,6 +194,29 @@ def _attention_forward(
 
     hidden_states = hidden_states / attn.rescale_output_factor
     return hidden_states
+
+
+def original(q, k, v, mask, heads, dim_head):
+    """Full multi-head attention with the QK^T scaling + softmax in fp32.
+
+    Same ``[B, C, 1, S]`` channel-major layout and mask convention as
+    ``split_einsum`` (so it slots into ``_attention_forward`` unchanged), but
+    computes the whole score matrix per head in one batched einsum instead of the
+    per-head split. Upcasting the scores to fp32 keeps the softmax stable when the
+    converted model runs in fp16 (QK^T at 4096 tokens overflows fp16 otherwise).
+    """
+    batch = q.size(0)
+    mh_q = q.view(batch, heads, dim_head, -1).float()
+    mh_k = k.view(batch, heads, dim_head, -1).float()
+    mh_v = v.view(batch, heads, dim_head, -1)
+
+    weights = torch.einsum("becq,beck->bkeq", mh_q, mh_k) * (dim_head**-0.5)
+    if mask is not None:
+        weights = weights + mask
+    weights = weights.softmax(dim=1).to(mh_v.dtype)
+
+    outputs = torch.einsum("bkeq,beck->becq", weights, mh_v)
+    return outputs.reshape(batch, heads * dim_head, 1, -1)
 
 
 def split_einsum(q, k, v, mask, heads, dim_head):
