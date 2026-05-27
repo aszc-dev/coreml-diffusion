@@ -33,7 +33,11 @@ dependencies = [
     "coremltools>=9,<10",
     "numpy>=2,<3",
     "diffusers>=0.30",
-    "transformers>=4.44",
+    # <5: transformers 5.x restructured CLIPTextModel (drops the `.text_model`
+    # wrapper), breaking diffusers 0.37's single-file CLIP loader used by the
+    # inference pipeline. (diffusers 0.38 fixes it but pulls a safetensors
+    # pre-release; staying on GA deps here.)
+    "transformers>=4.44,<5",
     "peft>=0.13",
     "omegaconf>=2.3",
 ]
@@ -70,8 +74,7 @@ extend-select = ["I"]
 markers = [
     "unit: framework-free unit test (Tier 0)",
     "smoke: macOS-ARM smoke test on a synthetic micro-model (Tier 1)",
-    "m2: requires Apple Silicon + Neural Engine (Tier 2)",
-    "inference: package-side custom-inference test via derived diffusers pipelines (planned)",
+    "m2: requires Apple Silicon + Neural Engine; comfy-free inference golden (Tier 2)",
 ]
 testpaths = ["tests"]
 addopts = ["--import-mode=importlib", "--confcutdir=tests"]

@@ -14,6 +14,7 @@ Example:
 import argparse
 
 import coreml_diffusion
+from coreml_diffusion import sources
 
 
 def _parse_lora(spec):
@@ -31,8 +32,9 @@ def _parse_lora(spec):
 def _convert_cmd(args):
     sample_size = (args.height // 8, args.width // 8)
     lora_weights = [_parse_lora(spec) for spec in (args.lora or [])]
+    ckpt = sources.resolve_checkpoint(args.ckpt, args.source)
     coreml_diffusion.convert(
-        args.ckpt,
+        ckpt,
         coreml_diffusion.ModelVersion[args.model_version],
         args.out,
         batch_size=args.batch_size,
@@ -45,6 +47,31 @@ def _convert_cmd(args):
     )
 
 
+def _sources_add_cmd(args):
+    entry = sources.add_source(args.name, args.path, args.kind)
+    print(f"Added source {args.name!r} ({entry['kind']}): {entry['path']}")
+
+
+def _sources_list_cmd(args):
+    registered = sources.load_sources()
+    if not registered:
+        print(f"No sources registered. Config: {sources.config_path()}")
+        return
+    for name, entry in sorted(registered.items()):
+        ckpts = sources.iter_checkpoints(entry)
+        print(f"{name} ({entry['kind']}): {entry['path']}")
+        if ckpts:
+            for stem in ckpts:
+                print(f"  - {stem}")
+        else:
+            print("  (no checkpoints found)")
+
+
+def _sources_remove_cmd(args):
+    sources.remove_source(args.name)
+    print(f"Removed source {args.name!r}")
+
+
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="coreml-diffusion",
@@ -54,7 +81,15 @@ def build_parser():
 
     conv = sub.add_parser("convert", help="Convert a checkpoint's UNet to a .mlpackage")
     conv.add_argument(
-        "--ckpt", required=True, help="Path to the source .safetensors checkpoint"
+        "--ckpt",
+        required=True,
+        help="Checkpoint path, or a name resolved against registered sources "
+        "(see 'coreml-diffusion sources')",
+    )
+    conv.add_argument(
+        "--source",
+        default=None,
+        help="Restrict --ckpt name resolution to this registered source",
     )
     conv.add_argument(
         "--model-version",
@@ -101,6 +136,28 @@ def build_parser():
         help="K-means weight palettization bits (default none = unquantized)",
     )
     conv.set_defaults(func=_convert_cmd)
+
+    src = sub.add_parser("sources", help="Manage model source directories")
+    src_sub = src.add_subparsers(dest="sources_command", required=True)
+
+    s_add = src_sub.add_parser("add", help="Register (or overwrite) a model source")
+    s_add.add_argument("name", help="Short name for the source, e.g. 'comfy'")
+    s_add.add_argument("path", help="Base directory of the source")
+    s_add.add_argument(
+        "--kind",
+        choices=sources.SOURCE_KINDS,
+        default="comfy",
+        help="Directory layout (default comfy: models/{checkpoints,loras,vae,...})",
+    )
+    s_add.set_defaults(func=_sources_add_cmd)
+
+    s_list = src_sub.add_parser("list", help="List sources and their checkpoints")
+    s_list.set_defaults(func=_sources_list_cmd)
+
+    s_rm = src_sub.add_parser("remove", help="Unregister a source")
+    s_rm.add_argument("name", help="Source name to remove")
+    s_rm.set_defaults(func=_sources_remove_cmd)
+
     return parser
 
 

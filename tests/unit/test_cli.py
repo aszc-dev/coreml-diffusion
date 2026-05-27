@@ -11,6 +11,14 @@ import coreml_diffusion
 from coreml_diffusion import ModelVersion, cli
 
 
+@pytest.fixture(autouse=True)
+def _isolate_sources(tmp_path, monkeypatch):
+    """Point the source registry at an empty throwaway config so arg-mapping
+    tests never read the developer's real ~/.config sources (which would resolve
+    or reject bare --ckpt names and make these tests non-hermetic)."""
+    monkeypatch.setenv("COREML_DIFFUSION_CONFIG", str(tmp_path / "sources.toml"))
+
+
 def _run(monkeypatch, argv):
     captured = {}
 

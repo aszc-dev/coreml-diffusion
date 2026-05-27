@@ -11,14 +11,12 @@ _TIER_BY_DIR = {
     "tests/unit": "unit",
     "tests/smoke": "smoke",
     "tests/m2": "m2",
-    "tests/inference": "inference",
 }
 
 _TIER_DIRS = {
     "unit": ("/tests/unit/",),
     "smoke": ("/tests/smoke/",),
     "m2": ("/tests/m2/",),
-    "inference": ("/tests/inference/",),
 }
 
 
