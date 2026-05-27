@@ -1,7 +1,7 @@
 [project]
 name = "coreml-diffusion"
 description = "Convert diffusion-model checkpoints (SD1.5/SDXL) to Core ML for Apple Neural Engine — framework-free, ComfyUI-independent."
-version = "0.1.0"
+version = "0.1.1"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.13"
@@ -29,7 +29,11 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "torch>=2.7,<2.8",
+    # No upper bound: torch is supplied by the host environment (e.g. ComfyUI).
+    # Capping it forces a downgrade of the host's torch, which breaks the
+    # already-installed torchvision/torchaudio ABI. coremltools 9 conversion is
+    # validated against torch 2.7.x, but inference does not require it.
+    "torch>=2.7",
     "coremltools>=9,<10",
     "numpy>=2,<3",
     "diffusers>=0.30",

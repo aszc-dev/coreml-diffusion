@@ -106,7 +106,7 @@ wheels = [
 
 [[package]]
 name = "coreml-diffusion"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "coremltools" },
@@ -131,7 +131,7 @@ requires-dist = [
     { name = "numpy", specifier = ">=2,<3" },
     { name = "omegaconf", specifier = ">=2.3" },
     { name = "peft", specifier = ">=0.13" },
-    { name = "torch", specifier = ">=2.7,<2.8" },
+    { name = "torch", specifier = ">=2.7" },
     { name = "transformers", specifier = ">=4.44,<5" },
 ]
 
