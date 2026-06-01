@@ -15,6 +15,12 @@ GPU-free, embeddable in a Swift/iOS app. ANE is the differentiator — this is a
 feasibility and power efficiency for SD1.5/SDXL on ANE, not a raw-throughput claim
 against desktop GPUs.
 
+The power-efficiency claim is measured: in a cross-backend benchmark the ct9
+converter here runs the SD1.5 UNet on the ANE at **6-7x lower energy** than
+GPU/MPS, at the same speed — see the writeup,
+[The ANE runs the SD1.5 UNet at 6-7x lower energy than GPU/MPS](https://log.aszc.dev/ane-vs-gpu-mps-sd15-unet-energy/),
+for the methodology and the numerical-divergence tradeoff.
+
 The scope is diffusion architectures generally, not Stable Diffusion specifically.
 The project aims to gather, in one place: the conversion path, a reproducible
 benchmarking suite for objective comparison, a per-model catalogue documenting the
