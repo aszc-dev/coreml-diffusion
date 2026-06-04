@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.3](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.2...v0.1.3) (2026-06-04)
+
+
+### ✨ Features
+
+* **convert:** add VAE and CLIP text-encoder conversion ([dc1f85b](https://github.com/aszc-dev/coreml-diffusion/commit/dc1f85bafe50d36655ff7ece0c052a30fd77bb81))
+* **inference:** end-to-end Core ML pipeline (VAE + text-encoder swap) ([ca08b16](https://github.com/aszc-dev/coreml-diffusion/commit/ca08b16729529afbdf610d0e8ec2d09b849080c6))
+
+
+### 🐛 Bug Fixes
+
+* **inference:** expose .device on the Core ML adapters ([30a673e](https://github.com/aszc-dev/coreml-diffusion/commit/30a673eebe3927722214d0ab6a44fbc344d18f3a))
+
+
+### 📚 Documentation
+
+* **readme:** link the log.aszc.dev energy benchmark writeup ([77927b5](https://github.com/aszc-dev/coreml-diffusion/commit/77927b5dd5f1311a3b3c317692f3a347e3976a54))
+
 ## [0.1.2](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.1...v0.1.2) (2026-05-27)
 
 
