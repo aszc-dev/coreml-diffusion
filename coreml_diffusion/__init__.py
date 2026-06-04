@@ -46,6 +46,8 @@ __all__ = [
     "convert",
     "build_pipeline",
     "CoreMLUNet",
+    "CoreMLVAE",
+    "CoreMLTextEncoder",
 ]
 
 
@@ -122,7 +124,7 @@ def __getattr__(name):
         from coreml_diffusion.convert import convert as _convert
 
         return _convert
-    if name in ("build_pipeline", "CoreMLUNet"):
+    if name in ("build_pipeline", "CoreMLUNet", "CoreMLVAE", "CoreMLTextEncoder"):
         from coreml_diffusion import inference
 
         return getattr(inference, name)
