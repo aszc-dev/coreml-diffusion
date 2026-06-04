@@ -82,6 +82,14 @@ class CoreMLUNet(torch.nn.Module):
         self._output_name = self.model.get_spec().description.output[0].name
 
     @property
+    def device(self):
+        # Inputs/outputs are materialised on CPU; the math runs on the ANE via
+        # coremltools. A plain nn.Module has no `.device`, but diffusers'
+        # `pipeline.device` / `_execution_device` walk the component modules for
+        # one — required once every component is a Core ML stand-in.
+        return torch.device("cpu")
+
+    @property
     def _is_lcm(self):
         return self.model_version is ModelVersion.LCM
 
@@ -196,6 +204,10 @@ class CoreMLVAE(torch.nn.Module):
             self._encoder = ct.models.MLModel(encoder_mlpackage, compute_units=unit)
             self._encoder_out = self._encoder.get_spec().description.output[0].name
 
+    @property
+    def device(self):
+        return torch.device("cpu")  # see CoreMLUNet.device
+
     def decode(self, z, return_dict=True, **_ignored):
         if self._decoder is None:
             raise RuntimeError("CoreMLVAE was built without a decoder package.")
@@ -268,6 +280,10 @@ class CoreMLTextEncoder(torch.nn.Module):
         self.model = ct.models.MLModel(mlpackage_path, compute_units=unit)
         names = {o.name for o in self.model.get_spec().description.output}
         self._pooled_name = "pooled_embeds" if "pooled_embeds" in names else None
+
+    @property
+    def device(self):
+        return torch.device("cpu")  # see CoreMLUNet.device
 
     def forward(
         self,
