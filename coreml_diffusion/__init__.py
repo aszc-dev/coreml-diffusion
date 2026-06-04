@@ -23,9 +23,11 @@ because a saved workflow JSON references these strings verbatim.
 from enum import Enum
 
 from coreml_diffusion.attention import ATTENTION_IMPLEMENTATIONS
+from coreml_diffusion.component import CONVERTIBLE_COMPONENTS
 from coreml_diffusion.model_version import ModelVersion
 from coreml_diffusion.naming import (
     QUANT_NBITS_VALUES,
+    compose_component_name,
     compose_out_name,
     lora_names_from_params,
 )
@@ -36,8 +38,10 @@ __all__ = [
     "list_model_versions",
     "list_attention_impls",
     "list_quant_modes",
+    "list_convertible_components",
     "CONTRACT_VERSION",
     "compose_out_name",
+    "compose_component_name",
     "lora_names_from_params",
     "convert",
     "build_pipeline",
@@ -91,9 +95,20 @@ def list_quant_modes() -> list[str]:
     return list(QUANT_NBITS_VALUES)
 
 
+def list_convertible_components() -> list[str]:
+    """Convertible components, e.g. ``["unet", "vae_decoder", ...]``.
+
+    ``"unet"`` is the historical default; the rest are the VAE / text-encoder
+    extension. ``"text_encoder_2"`` is only meaningful for SDXL — validity per
+    model version is enforced at convert time, not advertised here.
+    """
+    return list(CONVERTIBLE_COMPONENTS)
+
+
 # Discovery-contract version. Bump per the additive-only rules in this module's
 # docstring and CONVERTER_EXTRACTION_SPEC.md "Interface contract".
-CONTRACT_VERSION = "1.0"
+# 1.1: added list_convertible_components (VAE + text-encoder conversion).
+CONTRACT_VERSION = "1.1"
 
 
 def __getattr__(name):

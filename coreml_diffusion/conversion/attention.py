@@ -120,9 +120,13 @@ def _attention_forward(
     input_ndim = hidden_states.ndim
     if input_ndim == 4:
         batch_size, channel, height, width = hidden_states.shape
-        hidden_states = hidden_states.view(
-            batch_size, channel, height * width
-        ).transpose(1, 2)
+        # flatten(2) instead of view(B, C, height * width): the explicit
+        # height * width multiplies two traced size ints, emitting an aten::mul ->
+        # aten::Int that coremltools 9 cannot fold to a const (it fails the
+        # conversion). flatten collapses the spatial dims with a single reshape and
+        # no symbolic product. Only the 4D path (VAE self-attention) hits this; the
+        # UNet routes attention through a 3D tensor, so ORIGINAL there is untouched.
+        hidden_states = hidden_states.flatten(2).transpose(1, 2)
     else:
         batch_size, _, channel = hidden_states.shape
         height = None

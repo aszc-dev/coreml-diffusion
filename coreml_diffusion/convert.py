@@ -19,10 +19,19 @@ import torch
 from diffusers import UNet2DConditionModel
 
 from coreml_diffusion.attention import ATTENTION_IMPLEMENTATIONS
+from coreml_diffusion.component import Component
 from coreml_diffusion.conversion.attention import apply_attention_implementation
 from coreml_diffusion.conversion.shapes import conv2d_output_shape
+from coreml_diffusion.conversion.text_encoder import (
+    CoreMLTextEncoderWrapper,
+    static_causal_mask,
+)
 from coreml_diffusion.conversion.trace import prepare_unet_for_coreml_trace
 from coreml_diffusion.conversion.unet import CoreMLUNetWrapper
+from coreml_diffusion.conversion.vae import (
+    CoreMLVAEDecoderWrapper,
+    CoreMLVAEEncoderWrapper,
+)
 from coreml_diffusion.logger import logger
 from coreml_diffusion.model_version import ModelVersion
 
@@ -274,9 +283,17 @@ def convert_unet(
     del traced_unet
     gc.collect()
 
+    _palettize_and_save(coreml_unet, unet_out_path, quantize_nbits, "unet")
+
+
+def _palettize_and_save(coreml_model, out_path, quantize_nbits, label):
+    """Optionally k-means palettize the weights, then save the ``.mlpackage``.
+
+    The default path (``quantize_nbits="none"``) saves the model untouched. Shared
+    by the UNet and the VAE / text-encoder conversions so every component gets the
+    same opt-in palettization behaviour and filename-driven cache semantics.
+    """
     if quantize_nbits != "none":
-        # Opt-in k-means weight palettization. The default path
-        # (quantize_nbits="none") leaves the traced UNet untouched.
         from coremltools.optimize.coreml import (
             OpPalettizerConfig,
             OptimizationConfig,
@@ -284,16 +301,144 @@ def convert_unet(
         )
 
         nbits = int(quantize_nbits)
-        logger.info(f"Palettizing UNet weights to {nbits}-bit (kmeans)..")
+        logger.info(f"Palettizing {label} weights to {nbits}-bit (kmeans)..")
         t0 = time.time()
         cfg = OptimizationConfig(
             global_config=OpPalettizerConfig(mode="kmeans", nbits=nbits)
         )
-        coreml_unet = palettize_weights(coreml_unet, config=cfg)
+        coreml_model = palettize_weights(coreml_model, config=cfg)
         logger.info(f"Palettization took {time.time() - t0:.1f}s")
 
-    coreml_unet.save(unet_out_path)
-    logger.info(f"Saved unet into {unet_out_path}")
+    coreml_model.save(out_path)
+    logger.info(f"Saved {label} into {out_path}")
+
+
+def convert_vae_decoder(
+    ref_vae,
+    out_path: str,
+    *,
+    batch_size: int = 1,
+    sample_size: tuple[int, int] = (64, 64),
+    quantize_nbits: str = "none",
+):
+    """Convert ``AutoencoderKL``'s decoder (latent -> image) to a ``.mlpackage``.
+
+    ``sample_size`` is the *latent* spatial size (H/8, W/8); the image output is
+    8x that. The mid-block self-attention is routed through the ORIGINAL
+    (full, fp32-score) processor — diffusers' stock sdpa attention fails to
+    convert under coremltools 9, the same reason ``ORIGINAL`` exists for the UNet.
+    """
+    apply_attention_implementation(ref_vae, "ORIGINAL")
+    wrapper = CoreMLVAEDecoderWrapper(ref_vae.eval()).eval()
+
+    latent_shape = (
+        batch_size,
+        ref_vae.config.latent_channels,
+        sample_size[0],
+        sample_size[1],
+    )
+    example = torch.rand(*latent_shape)
+
+    logger.info(f"JIT tracing VAE decoder (latent {latent_shape})..")
+    traced = torch.jit.trace(wrapper, example)
+
+    inputs = [ct.TensorType(name="latent", shape=latent_shape, dtype=np.float16)]
+    coreml_model = convert_to_coreml("vae_decoder", traced, inputs, ["image"], out_path)
+    del traced
+    gc.collect()
+    _palettize_and_save(coreml_model, out_path, quantize_nbits, "vae_decoder")
+
+
+def convert_vae_encoder(
+    ref_vae,
+    out_path: str,
+    *,
+    batch_size: int = 1,
+    sample_size: tuple[int, int] = (64, 64),
+    quantize_nbits: str = "none",
+):
+    """Convert ``AutoencoderKL``'s encoder (image -> latent moments) to a ``.mlpackage``.
+
+    ``sample_size`` is the latent spatial size; the image input is 8x that. The
+    output ``latent_moments`` is the raw mean‖logvar tensor (2*latent_channels
+    channels) — the pipeline samples from it. Attention handling matches the
+    decoder.
+    """
+    apply_attention_implementation(ref_vae, "ORIGINAL")
+    wrapper = CoreMLVAEEncoderWrapper(ref_vae.eval()).eval()
+
+    image_shape = (batch_size, 3, sample_size[0] * 8, sample_size[1] * 8)
+    example = torch.rand(*image_shape)
+
+    logger.info(f"JIT tracing VAE encoder (image {image_shape})..")
+    traced = torch.jit.trace(wrapper, example)
+
+    inputs = [ct.TensorType(name="image", shape=image_shape, dtype=np.float16)]
+    coreml_model = convert_to_coreml(
+        "vae_encoder", traced, inputs, ["latent_moments"], out_path
+    )
+    del traced
+    gc.collect()
+    _palettize_and_save(coreml_model, out_path, quantize_nbits, "vae_encoder")
+
+
+def convert_text_encoder(
+    ckpt_path: str,
+    model_version: ModelVersion,
+    out_path: str,
+    *,
+    which: int = 1,
+    batch_size: int = 1,
+    quantize_nbits: str = "none",
+):
+    """Convert a CLIP text encoder (token ids -> embeddings) to a ``.mlpackage``.
+
+    ``which`` selects the encoder: 1 = primary (SD1.5/SDXL), 2 = SDXL's second
+    (``CLIPTextModelWithProjection``). SDXL uses the penultimate hidden state from
+    both encoders plus encoder 2's projected pooled output; SD1.5 uses encoder 1's
+    final ``last_hidden_state``. ``input_ids`` crosses the Core ML boundary as
+    int32 over the fixed 77-token sequence.
+    """
+    encoders = load_text_encoders(ckpt_path, model_version)
+    if which == 2:
+        if len(encoders) < 2:
+            raise ValueError(
+                f"{model_version.name} has no second text encoder "
+                "(text_encoder_2 is SDXL-only)."
+            )
+        encoder = encoders[1]
+        hidden_states_index = -2
+        output_pooled = True
+        output_names = ["hidden_states", "pooled_embeds"]
+    else:
+        encoder = encoders[0]
+        is_sdxl = model_version in {ModelVersion.SDXL, ModelVersion.SDXL_REFINER}
+        hidden_states_index = -2 if is_sdxl else None
+        output_pooled = False
+        output_names = ["hidden_states"]
+
+    wrapper = CoreMLTextEncoderWrapper(
+        encoder.eval(),
+        hidden_states_index=hidden_states_index,
+        output_pooled=output_pooled,
+    ).eval()
+
+    ids_shape = (batch_size, TEXT_TOKEN_SEQUENCE_LENGTH)
+    # Trace with int64 (torch embedding gather needs long); declare int32 at the
+    # Core ML boundary (coremltools casts the gather index op).
+    example = torch.zeros(ids_shape, dtype=torch.int64)
+
+    logger.info(f"JIT tracing text encoder {which} (input_ids {ids_shape})..")
+    with static_causal_mask(TEXT_TOKEN_SEQUENCE_LENGTH):
+        traced = torch.jit.trace(wrapper, example)
+
+    inputs = [ct.TensorType(name="input_ids", shape=ids_shape, dtype=np.int32)]
+    coreml_model = convert_to_coreml(
+        f"text_encoder_{which}", traced, inputs, output_names, out_path
+    )
+    del traced
+    gc.collect()
+    _palettize_and_save(coreml_model, out_path, quantize_nbits, f"text_encoder_{which}")
 
 
 def convert(
@@ -301,6 +446,7 @@ def convert(
     model_version: ModelVersion,
     out_path: str,
     *,
+    component: str = Component.UNET.value,
     batch_size: int = 1,
     sample_size: tuple[int, int] = (64, 64),
     controlnet_support: bool = False,
@@ -309,14 +455,51 @@ def convert(
     config_path: str = None,
     quantize_nbits: str = "none",
 ):
-    """Convert a single-file checkpoint's UNet to a Core ML ``.mlpackage``.
+    """Convert a single-file checkpoint component to a Core ML ``.mlpackage``.
 
-    Keyword-only past the three required positionals so the package can add
-    capabilities (new keyword args) without breaking an older caller — the
-    versioned interface contract. Writes ``out_path``; returns None.
+    ``component`` selects what to convert (default ``"unet"`` — historical
+    behaviour, all UNet-only kwargs apply). ``vae_decoder`` / ``vae_encoder`` /
+    ``text_encoder`` / ``text_encoder_2`` convert the corresponding sub-model and
+    ignore the UNet-only kwargs (``controlnet_support``, ``lora_weights``,
+    ``attn_impl``). Keyword-only past the three required positionals so the package
+    can add capabilities without breaking an older caller. Writes ``out_path``;
+    returns None.
     """
     if os.path.exists(out_path):
         logger.info(f"Found existing model at {out_path}! Skipping..")
+        return
+
+    comp = Component(component)
+
+    if comp is Component.VAE_DECODER:
+        convert_vae_decoder(
+            load_vae(ckpt_path),
+            out_path,
+            batch_size=batch_size,
+            sample_size=sample_size,
+            quantize_nbits=quantize_nbits,
+        )
+        return
+
+    if comp is Component.VAE_ENCODER:
+        convert_vae_encoder(
+            load_vae(ckpt_path),
+            out_path,
+            batch_size=batch_size,
+            sample_size=sample_size,
+            quantize_nbits=quantize_nbits,
+        )
+        return
+
+    if comp in {Component.TEXT_ENCODER, Component.TEXT_ENCODER_2}:
+        convert_text_encoder(
+            ckpt_path,
+            model_version,
+            out_path,
+            which=2 if comp is Component.TEXT_ENCODER_2 else 1,
+            batch_size=batch_size,
+            quantize_nbits=quantize_nbits,
+        )
         return
 
     if attn_impl not in ATTENTION_IMPLEMENTATIONS:
@@ -350,3 +533,42 @@ def load_unet(ckpt_path, config_path):
         ckpt_path,
         original_config=config_path,
     )
+
+
+def load_vae(ckpt_path):
+    """Load ``AutoencoderKL`` from a single-file checkpoint."""
+    from diffusers import AutoencoderKL
+
+    return AutoencoderKL.from_single_file(ckpt_path)
+
+
+# Pipeline class whose ``from_single_file`` extracts the text encoder(s) for a
+# given model version. SDXL pipelines expose ``text_encoder_2``; SD15/LCM do not.
+_TEXT_ENCODER_PIPELINE = {
+    ModelVersion.SD15: ("diffusers", "StableDiffusionPipeline"),
+    ModelVersion.LCM: ("diffusers", "StableDiffusionPipeline"),
+    ModelVersion.SDXL: ("diffusers", "StableDiffusionXLPipeline"),
+    ModelVersion.SDXL_REFINER: ("diffusers", "StableDiffusionXLPipeline"),
+}
+
+
+def load_text_encoders(ckpt_path, model_version):
+    """Return the checkpoint's CLIP text encoder(s) as a list (1 for SD1.5, 2 for SDXL).
+
+    Loads the matching diffusers pipeline from the single-file checkpoint and
+    extracts its text encoder(s). This pulls the whole pipeline (UNet/VAE
+    included) — acceptable for an offline, one-shot conversion and the most robust
+    way to recover correctly-configured CLIP weights from a single file.
+    """
+    import importlib
+
+    if model_version not in _TEXT_ENCODER_PIPELINE:
+        raise ValueError(f"No text-encoder pipeline mapped for {model_version!r}.")
+    module_name, class_name = _TEXT_ENCODER_PIPELINE[model_version]
+    pipeline_cls = getattr(importlib.import_module(module_name), class_name)
+
+    pipe = pipeline_cls.from_single_file(ckpt_path)
+    encoders = [pipe.text_encoder]
+    if getattr(pipe, "text_encoder_2", None) is not None:
+        encoders.append(pipe.text_encoder_2)
+    return encoders

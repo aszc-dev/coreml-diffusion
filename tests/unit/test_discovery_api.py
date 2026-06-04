@@ -63,9 +63,36 @@ def test_list_quant_modes_tracks_source_tuple():
     assert coreml_diffusion.list_quant_modes() == list(QUANT_NBITS_VALUES)
 
 
+# ---------- convertible components -------------------------------------------
+
+
+def test_list_convertible_components_exact():
+    assert coreml_diffusion.list_convertible_components() == [
+        "unet",
+        "vae_decoder",
+        "vae_encoder",
+        "text_encoder",
+        "text_encoder_2",
+    ]
+
+
+def test_list_convertible_components_tracks_source_tuple():
+    from coreml_diffusion.component import CONVERTIBLE_COMPONENTS
+
+    assert coreml_diffusion.list_convertible_components() == list(
+        CONVERTIBLE_COMPONENTS
+    )
+
+
+def test_unet_leads_components_for_backcompat():
+    # "unet" stays first: the historical default conversion path.
+    assert coreml_diffusion.list_convertible_components()[0] == "unet"
+
+
 # ---------- contract version -------------------------------------------------
 
 
 def test_contract_version_is_a_string():
     assert isinstance(coreml_diffusion.CONTRACT_VERSION, str)
-    assert coreml_diffusion.CONTRACT_VERSION == "1.0"
+    # 1.1: list_convertible_components added (additive minor bump).
+    assert coreml_diffusion.CONTRACT_VERSION == "1.1"

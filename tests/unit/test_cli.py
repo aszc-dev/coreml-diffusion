@@ -98,6 +98,42 @@ def test_defaults(monkeypatch):
     assert kw["controlnet_support"] is False
     assert kw["quantize_nbits"] == "none"
     assert kw["lora_weights"] is None  # no --lora -> None, not []
+    assert kw["component"] == "unet"  # default component
+
+
+def test_component_flag_maps_to_convert(monkeypatch):
+    captured = _run(
+        monkeypatch,
+        [
+            "convert",
+            "--ckpt",
+            "m.safetensors",
+            "--model-version",
+            "SDXL",
+            "--out",
+            "te2.mlpackage",
+            "--component",
+            "text_encoder_2",
+        ],
+    )
+    assert captured["kwargs"]["component"] == "text_encoder_2"
+
+
+def test_bad_component_rejected():
+    with pytest.raises(SystemExit):
+        cli.main(
+            [
+                "convert",
+                "--ckpt",
+                "m",
+                "--model-version",
+                "SD15",
+                "--out",
+                "o",
+                "--component",
+                "refiner",  # not a convertible component
+            ]
+        )
 
 
 def test_help_exits_zero():

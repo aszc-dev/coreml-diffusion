@@ -37,6 +37,7 @@ def _convert_cmd(args):
         ckpt,
         coreml_diffusion.ModelVersion[args.model_version],
         args.out,
+        component=args.component,
         batch_size=args.batch_size,
         sample_size=sample_size,
         controlnet_support=args.controlnet,
@@ -98,6 +99,13 @@ def build_parser():
         # versions (LCM, SDXL_REFINER) convert but are not golden-verified.
         choices=coreml_diffusion.list_model_versions(include_experimental=True),
         help="Model architecture (verified: SD15, SDXL; experimental otherwise)",
+    )
+    conv.add_argument(
+        "--component",
+        choices=coreml_diffusion.list_convertible_components(),
+        default="unet",
+        help="Checkpoint component to convert (default unet). VAE/text-encoder "
+        "components ignore --attn-impl/--controlnet/--lora. text_encoder_2 is SDXL-only",
     )
     conv.add_argument("--out", required=True, help="Output .mlpackage path to write")
     conv.add_argument(
