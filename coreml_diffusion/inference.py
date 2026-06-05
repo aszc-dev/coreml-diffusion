@@ -268,13 +268,24 @@ class CoreMLTextEncoder(torch.nn.Module):
     """
 
     def __init__(
-        self, mlpackage_path, ref_text_encoder, *, compute_unit=DEFAULT_COMPUTE_UNIT
+        self,
+        mlpackage_path,
+        ref_text_encoder,
+        *,
+        compute_unit=DEFAULT_COMPUTE_UNIT,
+        output_dtype=torch.float16,
     ):
         super().__init__()
         import coremltools as ct
 
         self.config = ref_text_encoder.config
-        self.dtype = torch.float16
+        # The package runs fp16 internally. ``output_dtype`` is the dtype of the
+        # embeddings handed back to the pipeline; keep fp16 (default) for an
+        # all-Core ML pipeline, or set fp32 when the embeddings feed a torch fp32
+        # component (e.g. an OAT config with a Core ML text encoder + torch UNet),
+        # where diffusers propagates ``prompt_embeds.dtype`` to the latents and time
+        # embedding and a Half/Float mismatch would otherwise crash the UNet.
+        self.dtype = output_dtype
         unit = _resolve_unit(compute_unit)
         logger.info(f"Loading text encoder {mlpackage_path} to {unit.name}")
         self.model = ct.models.MLModel(mlpackage_path, compute_units=unit)
@@ -294,14 +305,18 @@ class CoreMLTextEncoder(torch.nn.Module):
         **_ignored,
     ):
         prediction = self.model.predict({"input_ids": _i32(input_ids)})
-        embeds = torch.from_numpy(np.ascontiguousarray(prediction["hidden_states"])).to(
-            input_ids.device
+        embeds = (
+            torch.from_numpy(np.ascontiguousarray(prediction["hidden_states"]))
+            .to(input_ids.device)
+            .to(self.dtype)
         )
         pooled = None
         if self._pooled_name is not None:
-            pooled = torch.from_numpy(
-                np.ascontiguousarray(prediction[self._pooled_name])
-            ).to(input_ids.device)
+            pooled = (
+                torch.from_numpy(np.ascontiguousarray(prediction[self._pooled_name]))
+                .to(input_ids.device)
+                .to(self.dtype)
+            )
         return _CoreMLTextEncoderOutput(embeds, pooled)
 
 

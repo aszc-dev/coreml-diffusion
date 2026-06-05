@@ -118,6 +118,30 @@ def test_coreml_text_encoder_sd15_shape(tmp_path):
 
     assert out[0].shape == (1, SEQ_LEN, HIDDEN)  # no pooled -> [0] is embeds
     assert out.hidden_states[-2].shape == (1, SEQ_LEN, HIDDEN)
+    assert out[0].dtype == torch.float16  # default: fp16 for an all-Core ML pipeline
+
+
+def test_coreml_text_encoder_output_dtype_fp32(tmp_path):
+    # output_dtype=fp32 bridges a Core ML text encoder feeding a torch fp32 UNet
+    # (an OAT config): the embeddings must come back fp32 so diffusers does not
+    # propagate fp16 into the fp32 UNet and crash on a Half/Float mismatch.
+    from transformers import CLIPTextModel
+
+    from coreml_diffusion.inference import CoreMLTextEncoder
+
+    torch.manual_seed(0)
+    encoder = CLIPTextModel(_tiny_clip_config())
+    pkg = tmp_path / "text_encoder.mlpackage"
+    _convert_text_encoder(encoder, ["hidden_states"], pkg, index=None, pooled=False)
+
+    coreml_te = CoreMLTextEncoder(
+        str(pkg), encoder, compute_unit="CPU_ONLY", output_dtype=torch.float32
+    )
+    out = coreml_te(torch.zeros(1, SEQ_LEN, dtype=torch.long))
+
+    assert coreml_te.dtype == torch.float32
+    assert out[0].dtype == torch.float32
+    assert out.last_hidden_state.dtype == torch.float32
 
 
 def test_coreml_text_encoder_sdxl_pooled(tmp_path):
