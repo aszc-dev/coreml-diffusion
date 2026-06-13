@@ -22,7 +22,11 @@ from coreml_diffusion.attention import ATTENTION_IMPLEMENTATIONS
 from coreml_diffusion.component import Component
 from coreml_diffusion.conversion.attention import apply_attention_implementation
 from coreml_diffusion.conversion.shapes import conv2d_output_shape
-from coreml_diffusion.conversion.state_dict import is_diffusers_unet_layout
+from coreml_diffusion.conversion.state_dict import (
+    detect_model_version,
+    is_diffusers_unet_layout,
+    safetensors_keys,
+)
 from coreml_diffusion.conversion.text_encoder import (
     CoreMLTextEncoderWrapper,
     static_causal_mask,
@@ -460,8 +464,8 @@ def convert_text_encoder(
 
 def convert(
     ckpt_path: str,
-    model_version: ModelVersion,
-    out_path: str,
+    model_version: ModelVersion = None,
+    out_path: str = None,
     *,
     component: str = Component.UNET.value,
     batch_size: int = 1,
@@ -474,19 +478,27 @@ def convert(
 ):
     """Convert a single-file checkpoint component to a Core ML ``.mlpackage``.
 
-    ``component`` selects what to convert (default ``"unet"`` — historical
-    behaviour, all UNet-only kwargs apply). ``vae_decoder`` / ``vae_encoder`` /
-    ``text_encoder`` / ``text_encoder_2`` convert the corresponding sub-model and
-    ignore the UNet-only kwargs (``controlnet_support``, ``lora_weights``,
-    ``attn_impl``). Keyword-only past the three required positionals so the package
-    can add capabilities without breaking an older caller. Writes ``out_path``;
-    returns None.
+    ``model_version`` is auto-detected from the checkpoint when left ``None``
+    (the architecture fully determines the conversion); pass it explicitly only
+    to override a misdetection. ``component`` selects what to convert (default
+    ``"unet"`` — historical behaviour, all UNet-only kwargs apply).
+    ``vae_decoder`` / ``vae_encoder`` / ``text_encoder`` / ``text_encoder_2``
+    convert the corresponding sub-model and ignore the UNet-only kwargs
+    (``controlnet_support``, ``lora_weights``, ``attn_impl``). Keyword-only past
+    the leading positionals so the package can add capabilities without breaking
+    an older caller. Writes ``out_path``; returns None.
     """
+    if out_path is None:
+        raise TypeError("convert() requires out_path")
     if os.path.exists(out_path):
         logger.info(f"Found existing model at {out_path}! Skipping..")
         return
 
     comp = Component(component)
+
+    if model_version is None:
+        model_version = detect_model_version(ckpt_path)
+        logger.info(f"Auto-detected model version: {model_version.name}")
 
     if comp is Component.VAE_DECODER:
         convert_vae_decoder(
@@ -553,28 +565,13 @@ def load_unet(ckpt_path, config_path):
     e.g. ``LCM_Dreamshaper_v7_4k.safetensors``) are rejected by
     ``from_single_file`` outright, so they get a direct state-dict load.
     """
-    keys = _safetensors_keys(ckpt_path)
+    keys = safetensors_keys(ckpt_path)
     if keys is not None and is_diffusers_unet_layout(keys):
         return load_unet_from_diffusers_state_dict(ckpt_path)
     return UNet2DConditionModel.from_single_file(
         ckpt_path,
         original_config=config_path,
     )
-
-
-def _safetensors_keys(ckpt_path):
-    """The file's key list when it is safetensors, else None.
-
-    Probes by content, not filename — a resolved checkpoint path may point at
-    an extension-less blob (e.g. inside the Hugging Face cache).
-    """
-    from safetensors import SafetensorError, safe_open
-
-    try:
-        with safe_open(ckpt_path, framework="pt") as f:
-            return list(f.keys())
-    except SafetensorError:
-        return None
 
 
 def load_unet_from_diffusers_state_dict(ckpt_path, **config_overrides):

@@ -44,6 +44,7 @@ __all__ = [
     "compose_component_name",
     "lora_names_from_params",
     "convert",
+    "detect_model_version",
     "build_pipeline",
     "CoreMLUNet",
     "CoreMLVAE",
@@ -123,7 +124,23 @@ def __getattr__(name):
     if name == "convert":
         from coreml_diffusion.convert import convert as _convert
 
+        # Importing the submodule binds ``coreml_diffusion.convert`` to the
+        # MODULE as a side effect, which shadows this function on every later
+        # access (a module object isn't callable). Rebind the package attribute
+        # to the function so ``coreml_diffusion.convert(...)`` stays callable in
+        # long-lived processes (e.g. a ComfyUI server doing >1 conversion).
+        globals()["convert"] = _convert
         return _convert
+    if name == "detect_model_version":
+        # Lives in the framework-free state_dict module (reads only the
+        # safetensors header), so exposing it never drags coremltools/diffusers
+        # into the import path.
+        from coreml_diffusion.conversion.state_dict import (
+            detect_model_version as _detect,
+        )
+
+        globals()["detect_model_version"] = _detect
+        return _detect
     if name in ("build_pipeline", "CoreMLUNet", "CoreMLVAE", "CoreMLTextEncoder"):
         from coreml_diffusion import inference
 

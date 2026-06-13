@@ -33,9 +33,14 @@ def _convert_cmd(args):
     sample_size = (args.height // 8, args.width // 8)
     lora_weights = [_parse_lora(spec) for spec in (args.lora or [])]
     ckpt = sources.resolve_checkpoint(args.ckpt, args.source)
+    model_version = (
+        coreml_diffusion.ModelVersion[args.model_version]
+        if args.model_version
+        else None
+    )
     coreml_diffusion.convert(
         ckpt,
-        coreml_diffusion.ModelVersion[args.model_version],
+        model_version,
         args.out,
         component=args.component,
         batch_size=args.batch_size,
@@ -94,11 +99,13 @@ def build_parser():
     )
     conv.add_argument(
         "--model-version",
-        required=True,
-        # include experimental: the CLI is the power-user path. Experimental
-        # versions (LCM, SDXL_REFINER) convert but are not golden-verified.
+        default=None,
+        # Auto-detected from the checkpoint when omitted. Choices stay available
+        # as an explicit override (the CLI is the power-user path; experimental
+        # versions convert but are not golden-verified).
         choices=coreml_diffusion.list_model_versions(include_experimental=True),
-        help="Model architecture (verified: SD15, SDXL; experimental otherwise)",
+        help="Model architecture; auto-detected from the checkpoint when omitted "
+        "(verified: SD15, SDXL; experimental otherwise)",
     )
     conv.add_argument(
         "--component",
