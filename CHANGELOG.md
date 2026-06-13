@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.4](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.3...v0.1.4) (2026-06-13)
+
+
+### 🐛 Bug Fixes
+
+* **convert:** generic LCM conversion for arbitrary checkpoints ([bedeb49](https://github.com/aszc-dev/coreml-diffusion/commit/bedeb49a84a33b4530c6c7d4ed4343a914a400e2))
+* **inference:** add output_dtype to CoreMLTextEncoder ([eb6d3b5](https://github.com/aszc-dev/coreml-diffusion/commit/eb6d3b5b08b6ff34a4eb8683de3d1223fb447186))
+
 ## [0.1.3](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.2...v0.1.3) (2026-06-04)
 
 
