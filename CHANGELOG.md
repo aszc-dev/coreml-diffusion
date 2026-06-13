@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.5...v0.1.6) (2026-06-13)
+
+
+### 🐛 Bug Fixes
+
+* **deps:** drop the stale &lt;3.13 Python cap (allow &gt;=3.12) ([9b44a5a](https://github.com/aszc-dev/coreml-diffusion/commit/9b44a5a4a4118a99c924ccb8301d4e1a300c3b01))
+
 ## [0.1.5](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.4...v0.1.5) (2026-06-13)
 
 
