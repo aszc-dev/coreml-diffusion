@@ -4,7 +4,7 @@ description = "Convert diffusion-model checkpoints (SD1.5/SDXL) to Core ML for A
 version = "0.1.5"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 readme = "README.md"
 authors = [{ name = "Adrian Szczepański", email = "hi@aszc.dev" }]
 keywords = [
@@ -24,6 +24,7 @@ classifiers = [
     "Operating System :: MacOS",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Topic :: Multimedia :: Graphics :: Graphics Conversion",
     "Typing :: Typed",
