@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.5](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.4...v0.1.5) (2026-06-13)
+
+
+### ✨ Features
+
+* **convert:** auto-detect model version from the checkpoint ([2a24d4e](https://github.com/aszc-dev/coreml-diffusion/commit/2a24d4efd196100dbdd0bf9d5dd61c6cce31d2ac))
+
 ## [0.1.4](https://github.com/aszc-dev/coreml-diffusion/compare/v0.1.3...v0.1.4) (2026-06-13)
 
 
