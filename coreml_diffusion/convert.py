@@ -22,6 +22,7 @@ from coreml_diffusion.attention import ATTENTION_IMPLEMENTATIONS
 from coreml_diffusion.component import Component
 from coreml_diffusion.conversion.attention import apply_attention_implementation
 from coreml_diffusion.conversion.shapes import conv2d_output_shape
+from coreml_diffusion.conversion.state_dict import is_diffusers_unet_layout
 from coreml_diffusion.conversion.text_encoder import (
     CoreMLTextEncoderWrapper,
     static_causal_mask,
@@ -139,9 +140,17 @@ def get_sample_input(
     return sample_unet_inputs
 
 
-def lcm_inputs(sample_unet_inputs):
+def lcm_inputs(sample_unet_inputs, ref_unet=None):
+    """Build the LCM guidance-embedding (``timestep_cond``) trace input.
+
+    The embedding dim comes from ``ref_unet.config.time_cond_proj_dim``. The
+    256 fallback preserves the legacy ref-unet-less call shape (the Suite's LCM
+    converter calls this with one argument); 256 is correct for every known
+    SD1.5 full-distill LCM.
+    """
     batch_size = sample_unet_inputs["sample"].shape[0]
-    return {"timestep_cond": torch.randn(batch_size, 256).to(torch.float32)}
+    dim = 256 if ref_unet is None else ref_unet.config.time_cond_proj_dim
+    return {"timestep_cond": torch.randn(batch_size, dim).to(torch.float32)}
 
 
 def sdxl_inputs(sample_unet_inputs, ref_unet, model_version):
@@ -257,7 +266,15 @@ def convert_unet(
     )
 
     if model_version == ModelVersion.LCM:
-        sample_inputs |= lcm_inputs(sample_inputs)
+        if ref_unet.config.time_cond_proj_dim is None:
+            raise ValueError(
+                "model_version=LCM requires a UNet with a guidance embedding "
+                "(config.time_cond_proj_dim), but this checkpoint has none — "
+                "it is an LCM-LoRA merge with plain SD1.5 architecture. "
+                "Convert it with model_version=SD15 and use an LCM scheduler "
+                "at sampling time."
+            )
+        sample_inputs |= lcm_inputs(sample_inputs, ref_unet)
 
     if model_version in {ModelVersion.SDXL, ModelVersion.SDXL_REFINER}:
         sample_inputs |= sdxl_inputs(sample_inputs, ref_unet, model_version)
@@ -529,10 +546,61 @@ def convert(
 
 
 def load_unet(ckpt_path, config_path):
+    """Load the UNet from a single-file checkpoint, routing on state-dict layout.
+
+    LDM-layout files (the Civitai norm) go through ``from_single_file``.
+    Diffusers-layout UNet-only dumps (the canonical full-distill LCM artifacts,
+    e.g. ``LCM_Dreamshaper_v7_4k.safetensors``) are rejected by
+    ``from_single_file`` outright, so they get a direct state-dict load.
+    """
+    keys = _safetensors_keys(ckpt_path)
+    if keys is not None and is_diffusers_unet_layout(keys):
+        return load_unet_from_diffusers_state_dict(ckpt_path)
     return UNet2DConditionModel.from_single_file(
         ckpt_path,
         original_config=config_path,
     )
+
+
+def _safetensors_keys(ckpt_path):
+    """The file's key list when it is safetensors, else None.
+
+    Probes by content, not filename — a resolved checkpoint path may point at
+    an extension-less blob (e.g. inside the Hugging Face cache).
+    """
+    from safetensors import SafetensorError, safe_open
+
+    try:
+        with safe_open(ckpt_path, framework="pt") as f:
+            return list(f.keys())
+    except SafetensorError:
+        return None
+
+
+def load_unet_from_diffusers_state_dict(ckpt_path, **config_overrides):
+    """Load a diffusers-layout UNet-only safetensors dump (SD1.5-class).
+
+    SD1.5 architecture is assumed (``UNet2DConditionModel`` defaults); the
+    cross-attention and guidance-embedding dims are read from the weights, so
+    both full-distill LCM dumps (``time_embedding.cond_proj`` present) and
+    plain SD1.5 UNet dumps load correctly. A non-SD1.5-class dump fails the
+    strict ``load_state_dict`` with an explicit shape/key error.
+    ``config_overrides`` exists for tests exercising miniature architectures.
+    """
+    from safetensors.torch import load_file
+
+    state_dict = load_file(ckpt_path)
+    cond_proj = state_dict.get("time_embedding.cond_proj.weight")
+    config_kwargs = {
+        "sample_size": 64,
+        "cross_attention_dim": state_dict[
+            "down_blocks.0.attentions.0.transformer_blocks.0.attn2.to_k.weight"
+        ].shape[1],
+        "time_cond_proj_dim": None if cond_proj is None else cond_proj.shape[1],
+    } | config_overrides
+    unet = UNet2DConditionModel(**config_kwargs)
+    unet.load_state_dict(state_dict)
+    return unet
 
 
 def load_vae(ckpt_path):
